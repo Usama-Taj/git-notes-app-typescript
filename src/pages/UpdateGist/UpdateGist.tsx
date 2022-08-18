@@ -1,176 +1,156 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
+import {
+  GistFile,
+  GistFormFileTypes,
+  GistFormTypes,
+  GistResponseTypes,
+  RouterHOCTypes,
+} from "types";
 import { getGist, updateAGist } from "api/gist.service";
+import Button from "components/common/Button/Button";
 import FileInput from "components/common/FileInput/FileInput";
 import { withAuth } from "hoc/withAuth";
 import { withRouter } from "hoc/withRouter";
+import { TextField } from "shared-styles/InputFields.styles";
 import { UpdateGistForm } from "./UpdateGist.styles";
-import {
-  AddFileButton,
-  CreateOrUpdateGistButton,
-  TextField,
-} from "shared-styles/InputFields.styles";
-import { GistFile, GistResponseTypes, RouterHOCTypes, GistTypes } from "types";
-
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { updateGistSchema } from "./schema";
+import { InputErrorsMessage } from "shared-styles/StyledComponents.styles";
 interface Props {
   router: RouterHOCTypes;
 }
-interface GistFileProp extends GistFile {
-  removed?: boolean;
-}
-const UpdateGist: React.FC<Props> = ({ router: { params, navigate } }) => {
+
+const UpdateGist: React.FC<Props> = ({ router: { params }, router }) => {
   // Data Variables
+  const defaultValues = {
+    description: "",
+    files: [{ filename: "", content: "" }],
+  };
   // States
-  const [gist_description, setGist_description] = useState("");
-  const [file_counter, setFile_counter] = useState(1);
-  const [submit, setSubmit] = useState(false);
-  const [input_files, setInput_files] = useState<GistFileProp[]>([]);
-  const [username, setUsername] = useState("");
-  // useEffects
-  useEffect(() => {
+  const [removedFiles, setRemovedFiles] = useState([]);
+  // React Hook Forms
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    control,
+    reset,
+  } = useForm<GistFormTypes>({
+    resolver: yupResolver(updateGistSchema),
+    defaultValues,
+  });
+  const { fields, append, remove } = useFieldArray<
+    GistFormTypes,
+    "files",
+    "id"
+  >({
+    name: "files",
+    control,
+  });
+  // useLayoutEffects
+  useLayoutEffect(() => {
     if (params?.gist_id) {
-      getGist(params?.gist_id).then((response) => {
-        const {
-          files,
-          description,
-          owner: { login },
-        }: GistResponseTypes = response;
-        const data_input_files: GistFile[] = [];
-        let file_id = 0;
-        for (const [filename, file] of Object.entries(files)) {
-          ++file_id;
-          data_input_files.push({
-            file_id,
-            filename,
-            file_content: file.content,
-          });
-        }
-        setUsername(login);
-        setGist_description(description);
-        setFile_counter(Object.keys(files).length);
-        setInput_files(data_input_files);
-      });
+      updateFields(params?.gist_id);
     }
-  }, []);
-  useEffect(() => {
-    console.log("Input Files", input_files);
-  }, [input_files]);
-  // Functions
-  const handleSubmitClick = useCallback(() => {
-    setSubmit(true);
-  }, [gist_description]);
+  }, [params?.gist_id]);
 
-  const handleSubmit = useCallback(
-    async (e: any) => {
-      e.preventDefault();
-
-      let files = {};
-
-      input_files.forEach((fileItem) => {
-        const { filename, file_content: content } = fileItem;
-        files = { ...files, [filename]: { content } };
-      });
-      const data_obj: GistTypes = {
-        description: gist_description,
-        files,
-        gist_id: params.gist_id,
-      };
-      console.log(data_obj);
-      const response = await updateAGist(data_obj);
-      if (response) {
-        navigate(`/profile/${username}`);
+  const updateFields = useCallback(
+    async (id: string) => {
+      const response = await getGist(id);
+      const { files, description }: GistResponseTypes = response;
+      const data_input_files: GistFile[] = [];
+      for (const [filename, { content }] of Object.entries(files)) {
+        data_input_files.push({
+          filename,
+          content,
+        });
       }
+      reset({ description, files: data_input_files });
     },
-    [gist_description, input_files, file_counter]
+    [params?.gist_id]
   );
 
-  const handleDescChange = useCallback(
-    (e: any) => {
-      setGist_description(e.target.value);
+  // Functions
+
+  const handleFormSubmit = useCallback(
+    async (data: any) => {
+      const files_array = [...data.files, ...removedFiles];
+      console.log("Removed", removedFiles);
+      let files = {};
+
+      files_array.forEach((fileItem: GistFormFileTypes) => {
+        const { filename, content } = fileItem;
+        files = { ...files, [filename]: { content } };
+      });
+      console.log({ ...data, files });
+      const response = await updateAGist({
+        ...data,
+        files,
+        gist_id: params?.gist_id,
+      });
+      if (response) {
+        router.navigate(`/profile/${process.env.USERNAME}`);
+      }
     },
-    [gist_description]
+    [removedFiles]
   );
 
   const handleAddFileInput = useCallback(() => {
-    setInput_files((input_files) => [
-      ...input_files,
-      { file_id: file_counter + 1 },
-    ]);
-    setFile_counter((counter) => counter + 1);
-  }, [input_files, file_counter]);
-
-  const getAllFiles = useCallback(
-    (file_id: number, filename: string, file_content: string) => {
-      setInput_files((input_files) => {
-        const filtered_input_files = input_files.filter(
-          (file) => file.file_id !== file_id
-        );
-        const new_file = {
-          file_id,
-          filename,
-          file_content,
-        };
-        return [...filtered_input_files, new_file];
-      });
-    },
-    [input_files]
-  );
+    append({ filename: "", content: "" });
+  }, []);
 
   const removeFile = useCallback(
-    (file_id: number) => {
-      if (file_counter > 1) {
-        setInput_files((input_files) => {
-          const updated_input_files = input_files.map((file) => {
-            if (file.file_id === file_id) {
-              return { ...file, removed: true, file_content: "" };
-            }
-            return file;
-          });
-          return updated_input_files;
-        });
-        setFile_counter(file_counter - 1);
-      }
+    (i: number, id: string) => {
+      const selected_file = fields.find((file) => file.id === id);
+      setRemovedFiles((files) => [...files, { ...selected_file, content: "" }]);
+      remove(i);
     },
-    [file_counter, input_files]
+    [fields]
   );
 
-  const renderFileInputFields = useMemo(() => {
-    return input_files
-      .filter((file) => !file?.removed)
-      .map(({ file_id, filename, file_content }, i) => (
+  const renderFileInputFields = () => {
+    return fields.map((field, i) => {
+      return (
         <FileInput
-          key={i}
-          file_id={file_id}
-          getAllFiles={getAllFiles}
+          key={field.id}
+          id={field.id}
+          index={i}
+          control={control}
+          register={register}
           removeFile={removeFile}
-          submit={submit}
-          filename={filename}
-          file_content={file_content}
+          field={field}
+          errors={errors}
         />
-      ));
-  }, [input_files, submit]);
-  // Rendering
+      );
+    });
+  };
+
   return (
-    <UpdateGistForm onSubmit={handleSubmit}>
-      <TextField
-        type="text"
+    <UpdateGistForm onSubmit={handleSubmit(handleFormSubmit)}>
+      <Controller
         name="description"
-        id="description"
-        placeholder="Description"
-        value={gist_description}
-        onChange={handleDescChange}
-        autoComplete="off"
+        render={({ field }) => (
+          <TextField
+            {...field}
+            type="text"
+            placeholder="Description"
+            autoComplete="off"
+          />
+        )}
+        control={control}
       />
-      {renderFileInputFields}
-      <AddFileButton htmlType="button" onClick={handleAddFileInput}>
+      <InputErrorsMessage>
+        {errors?.description && errors.description?.message}
+      </InputErrorsMessage>
+
+      {renderFileInputFields()}
+      <Button type="primary" htmlType="button" onClick={handleAddFileInput}>
         Add File
-      </AddFileButton>
-      <CreateOrUpdateGistButton
-        htmlType="submit"
-        block
-        onClick={handleSubmitClick}
-      >
-        Update Gist
-      </CreateOrUpdateGistButton>
+      </Button>
+      <Button htmlType="submit" type="primary" block>
+        Create Gist
+      </Button>
     </UpdateGistForm>
   );
 };

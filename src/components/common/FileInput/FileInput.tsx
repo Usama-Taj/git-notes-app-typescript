@@ -1,83 +1,90 @@
-import React, {
-  useState,
-  useLayoutEffect,
-  useCallback,
-  ChangeEvent,
-} from "react";
+import React from "react";
+import {
+  UseFormRegister,
+  Control,
+  Controller,
+  FieldArrayWithId,
+  FieldErrors,
+} from "react-hook-form";
 import { FileContent, TextField } from "shared-styles/InputFields.styles";
-import { Divider } from "shared-styles/StyledComponents.styles";
+import {
+  Divider,
+  InputErrorsMessage,
+} from "shared-styles/StyledComponents.styles";
+import { GistFormFileTypes, GistFormTypes } from "types";
 import Button from "../Button/Button";
 
 interface Props {
-  filename?: string;
-  file_content?: string;
-  getAllFiles: (
-    file_id: number,
-    filename: string,
-    file_content: string
-  ) => void;
-  file_id: number;
-  submit: boolean;
-  removeFile: (file_id: number) => void;
+  register: UseFormRegister<GistFormTypes>;
+  control: Control<GistFormTypes>;
+  index: number;
+  id: string;
+  removeFile: (i: number, id: string) => void;
+  field: FieldArrayWithId<GistFormFileTypes>;
+  errors: FieldErrors<GistFormTypes>;
 }
 
 const FileInput: React.FC<Props> = ({
-  filename: filename_prop,
-  file_content: file_content_prop,
-  getAllFiles,
-  file_id,
-  submit,
+  control,
+  index,
   removeFile,
+  errors,
+  id,
 }) => {
-  // States
-  const [filename, setFilename] = useState<string>(filename_prop || "");
-  const [file_content, setFile_content] = useState<string>(
-    file_content_prop || ""
-  );
-
-  // UseLayoutEffects
-  useLayoutEffect(() => {
-    if (submit) {
-      getAllFiles(file_id, filename, file_content);
-    }
-  }, [submit]);
-
   //Functions
-  const handleFileNameChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>): void => setFilename(e.target.value),
-    []
-  );
-
-  const handleFileContentChange = useCallback((e: any): void => {
-    setFile_content(e.target.value);
-  }, []);
-
   const handleRemoveFile = (): void => {
-    removeFile(file_id);
+    removeFile(index, id);
   };
 
   //Rendering
   return (
     <>
-      <TextField
-        type="text"
-        name={`filename${file_id}`}
-        id={`filename${file_id}`}
-        placeholder="Enter file name..."
-        onChange={handleFileNameChange}
-        value={filename}
-        autoComplete="off"
+      <Controller
+        name={`files.${index}.filename`}
+        control={control}
+        render={({ field }) => (
+          <TextField
+            {...field}
+            type="text"
+            placeholder="Enter file name..."
+            autoComplete="off"
+            danger={
+              errors?.files &&
+              errors?.files[index]?.filename &&
+              (!!errors?.files[index]?.filename).toString()
+            }
+          />
+        )}
       />
-      <FileContent
-        name={`file_content${file_id}`}
-        id={`file_content${file_id}`}
-        cols={30}
-        rows={10}
-        placeholder="Enter File Content..."
-        onChange={handleFileContentChange}
-        value={file_content}
-        autoComplete="off"
+      <InputErrorsMessage>
+        {errors?.files &&
+          errors?.files[index] &&
+          errors?.files[index]?.filename?.message}
+      </InputErrorsMessage>
+      <Controller
+        name={`files.${index}.content`}
+        control={control}
+        render={({ field }) => (
+          <FileContent
+            {...field}
+            cols={30}
+            rows={10}
+            placeholder="Enter File Content..."
+            autoComplete="off"
+            danger={
+              errors?.files &&
+              errors?.files[index]?.content &&
+              (!!errors?.files[index]?.content).toString()
+            }
+          />
+        )}
       />
+      <InputErrorsMessage>
+        {errors?.files &&
+          errors?.files[index] &&
+          errors?.files[index]?.content?.message}
+      </InputErrorsMessage>
+
       <Button
         danger={true}
         type="primary"

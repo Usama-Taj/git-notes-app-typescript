@@ -7,7 +7,7 @@ export interface Props {
   htmlType?: "button" | "submit" | "reset";
   block?: boolean;
   type?: "primary" | "ghost" | "dashed" | "link" | "text" | "default";
-  onClick: (event: MouseEvent<HTMLElement>) => void;
+  onClick?: (event: MouseEvent<HTMLElement>) => void;
   width?: string;
   icon?: ReactNode;
 }

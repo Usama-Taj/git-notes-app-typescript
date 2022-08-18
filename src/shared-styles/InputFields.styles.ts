@@ -1,12 +1,25 @@
-import { Button, Input, Switch } from "antd";
-import { GREEN, LIGHTGREEN, WHITE } from "constants/index";
+import { Button, Input, InputProps, Switch } from "antd";
+import { GREEN, LIGHTGREEN, RED, WHITE } from "constants/index";
 import styled, { css } from "styled-components";
 const { TextArea } = Input;
+
+interface TextFieldProps extends InputProps {
+  danger?: boolean | string;
+}
+
 const FieldEffects = css`
   &.ant-input:not(.ant-input-disabled):hover,
   &.ant-input:not(.ant-input-disabled):active,
   &.ant-input:not(.ant-input-disabled):active {
     border: 1px solid ${GREEN};
+  }
+`;
+const DangerFieldEffects = css`
+  border: 1px solid ${RED};
+  &.ant-input:not(.ant-input-disabled):hover,
+  &.ant-input:not(.ant-input-disabled):active,
+  &.ant-input:not(.ant-input-disabled):active {
+    border: 1px solid ${RED};
   }
 `;
 
@@ -26,22 +39,21 @@ export const GistTypeSwitch = styled(Switch)`
     width: 6%;
   }
 `;
-
-export const TextField = styled(Input)`
+export const TextField = styled(Input)<TextFieldProps>`
   &.ant-input {
     border-radius: 5px;
     height: 1.6rem;
     width: 100%;
   }
-  ${FieldEffects}
+  ${({ danger }) => (danger ? DangerFieldEffects : FieldEffects)}
 `;
 
-export const FileContent = styled(TextArea)`
+export const FileContent = styled(TextArea)<TextFieldProps>`
   &.ant-input {
     border-radius: 5px;
     width: 100%;
   }
-  ${FieldEffects}
+  ${({ danger }) => (danger ? DangerFieldEffects : FieldEffects)}
 `;
 
 export const AddFileButton = styled(Button)`

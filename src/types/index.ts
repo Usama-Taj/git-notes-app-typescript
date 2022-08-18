@@ -15,15 +15,24 @@ export interface GistResponseTypes {
 }
 
 export interface GistFile {
-  file_id?: number;
   filename?: string;
-  file_content?: string;
+  content?: string;
 }
 
 export interface GistTypes {
   description?: string;
   files: Record<string, { content: string }>;
   gist_id?: string;
+  public?: boolean;
+}
+export interface GistFormFileTypes {
+  filename?: string;
+  content?: string;
+}
+
+export interface GistFormTypes {
+  description: string;
+  files: GistFormFileTypes[];
   public?: boolean;
 }
 

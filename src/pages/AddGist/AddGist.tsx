@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { GistFile, GistTypes, RouterHOCTypes } from "types";
+import React, { useCallback } from "react";
+import { GistFormFileTypes, GistFormTypes, RouterHOCTypes } from "types";
 import { createAGist } from "api/gist.service";
 import Button from "components/common/Button/Button";
 import FileInput from "components/common/FileInput/FileInput";
@@ -7,133 +7,117 @@ import { withAuth } from "hoc/withAuth";
 import { withRouter } from "hoc/withRouter";
 import { TextField, GistTypeSwitch } from "shared-styles/InputFields.styles";
 import { AddGistForm } from "./AddGist.styles";
-
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { addGistSchema } from "./schema";
+import { InputErrorsMessage } from "shared-styles/StyledComponents.styles";
 interface Props {
   router: RouterHOCTypes;
 }
 
 const AddGist: React.FC<Props> = ({ router }) => {
   // Data Variables
-  // States
-  const [gist_description, setGist_description] = useState("");
-  const [file_counter, setFile_counter] = useState(1);
-  const [input_files, setInput_files] = useState<GistFile[]>([{ file_id: 1 }]);
-  const [type_public, setType_public] = useState(true);
-  const [submit, setSubmit] = useState(false);
+  const defaultValues = {
+    description: "",
+    files: [{ filename: "", content: "" }],
+  };
+  // React Hook Forms
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    control,
+  } = useForm<GistFormTypes>({
+    resolver: yupResolver(addGistSchema),
+    defaultValues,
+  });
+  const { fields, append, remove } = useFieldArray<
+    GistFormTypes,
+    "files",
+    "id"
+  >({
+    name: "files",
+    control,
+  });
   // Functions
 
-  const handleSubmit = useCallback(
-    async (e: any) => {
-      e.preventDefault();
-      let files = {};
-      input_files.forEach((fileItem) => {
-        const { filename, file_content: content } = fileItem;
-        files = { ...files, [filename]: { content } };
-      });
-      const data_obj: GistTypes = {
-        description: gist_description,
-        files,
-        public: type_public,
-      };
-      const response = await createAGist(data_obj);
-      if (response) {
-        router.navigate(`/profile/${process.env.USERNAME}`);
-      }
-    },
-    [gist_description, input_files, file_counter, type_public]
-  );
+  const handleFormSubmit = useCallback(async (data: any) => {
+    let files = {};
 
-  const handleSubmitClick = useCallback(() => {
-    setSubmit(true);
-  }, [submit]);
-
-  const handleDescChange = useCallback(
-    (e: any) => {
-      setGist_description(e.target.value);
-    },
-    [gist_description]
-  );
-
-  const handleCheck = useCallback(
-    (checked: boolean) => {
-      setType_public(checked);
-    },
-    [type_public]
-  );
+    data.files.forEach((fileItem: GistFormFileTypes) => {
+      const { filename, content } = fileItem;
+      files = { ...files, [filename]: { content } };
+    });
+    const response = await createAGist({ ...data, files });
+    if (response) {
+      router.navigate(`/profile/${process.env.USERNAME}`);
+    }
+  }, []);
 
   const handleAddFileInput = useCallback(() => {
-    setInput_files((input_files) => [
-      ...input_files,
-      { file_id: file_counter + 1 },
-    ]);
-    setFile_counter(file_counter + 1);
-  }, [input_files, file_counter]);
+    append({ filename: "", content: "" });
+  }, []);
 
-  const getAllFiles = useCallback(
-    (file_id: number, filename: string, file_content: string) => {
-      setInput_files((input_files) => {
-        const filtered_input_files = input_files.filter(
-          (file) => file.file_id !== file_id
-        );
-        const new_file = {
-          file_id,
-          filename,
-          file_content,
-        };
-        return [...filtered_input_files, new_file];
-      });
-    },
-    [input_files]
-  );
-  const removeFile = useCallback(
-    (file_id: number) => {
-      if (file_counter > 1) {
-        setInput_files(input_files.filter((file) => file.file_id !== file_id));
-      }
-    },
-    [file_counter, input_files]
-  );
+  const removeFile = useCallback((i: number) => {
+    remove(i);
+  }, []);
 
-  const renderFileInputFields = useMemo(() => {
-    return input_files.map(({ file_id }) => (
-      <FileInput
-        key={file_id}
-        file_id={file_id}
-        getAllFiles={getAllFiles}
-        removeFile={removeFile}
-        submit={submit}
-      />
-    ));
-  }, [input_files, submit]);
+  const renderFileInputFields = () => {
+    return fields.map((field, i) => {
+      return (
+        <FileInput
+          key={field.id}
+          index={i}
+          id={field.id}
+          control={control}
+          register={register}
+          removeFile={removeFile}
+          field={field}
+          errors={errors}
+        />
+      );
+    });
+  };
 
   return (
-    <AddGistForm onSubmit={handleSubmit}>
-      <TextField
-        type="text"
+    <AddGistForm onSubmit={handleSubmit(handleFormSubmit)}>
+      <Controller
         name="description"
-        id="description"
-        placeholder="Description"
-        value={gist_description}
-        onChange={handleDescChange}
-        autoComplete="off"
+        render={({ field }) => (
+          <TextField
+            {...field}
+            type="text"
+            placeholder="Description"
+            autoComplete="off"
+          />
+        )}
+        control={control}
       />
-      <GistTypeSwitch
-        checkedChildren="Public"
-        unCheckedChildren="Private"
-        defaultChecked
-        onChange={handleCheck}
-        checked={type_public}
+      <InputErrorsMessage>
+        {errors?.description && errors.description?.message}
+      </InputErrorsMessage>
+      <Controller
+        name="public"
+        control={control}
+        render={({ field }) => (
+          <GistTypeSwitch
+            {...field}
+            checked={field.value}
+            checkedChildren="Public"
+            unCheckedChildren="Private"
+            defaultChecked
+          />
+        )}
       />
-      {renderFileInputFields}
+      <InputErrorsMessage>
+        {errors?.public && errors.public?.message}
+      </InputErrorsMessage>
+
+      {renderFileInputFields()}
       <Button type="primary" htmlType="button" onClick={handleAddFileInput}>
         Add File
       </Button>
-      <Button
-        htmlType="submit"
-        type="primary"
-        block
-        onClick={handleSubmitClick}
-      >
+      <Button htmlType="submit" type="primary" block>
         Create Gist
       </Button>
     </AddGistForm>
